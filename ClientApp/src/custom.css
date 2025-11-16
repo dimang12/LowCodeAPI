@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Provide sufficient contrast against white background */
+a {
+  color: #0366d6;
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+code {
+  color: #E01A76;
+}
+
+.btn-primary {
+  color: #fff;
+  background-color: #1b6ec2;
+  border-color: #1861ac;
+}
+.module {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.module-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.module-header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.module-header p {
+  margin: 0;
+  color: #495057;
+}
+
+.module-apps .module-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.module-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e8edf4;
+  box-shadow: 0 6px 18px rgba(24, 97, 172, 0.08);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.module-card h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.module-card p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.module-pages {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 280px 1fr;
+}
+
+.module-sidebar {
+  background: #f8f9fb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 1.25rem;
+}
+
+.module-sidebar h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.module-sidebar ul {
+  list-style: none;
+  margin: 1rem 0 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.module-sidebar li {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #dbe1e8;
+}
+
+.module-canvas {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.canvas-preview {
+  display: grid;
+  gap: 1rem;
+}
+
+.canvas-row {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.canvas-block {
+  background: linear-gradient(135deg, rgba(27, 110, 194, 0.12), rgba(27, 110, 194, 0.02));
+  border: 1px solid rgba(27, 110, 194, 0.18);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+  font-weight: 600;
+  color: #1f2933;
+}
+
+.module-sdm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.module-timeline {
+  display: grid;
+  gap: 1rem;
+}
+
+.timeline-item {
+  background: #ffffff;
+  border-left: 6px solid #1b6ec2;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 8px 20px rgba(36, 81, 145, 0.08);
+}
+
+.timeline-item h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.2rem;
+}
+
+.timeline-item p {
+  margin: 0;
+  color: #4b5563;
+}
