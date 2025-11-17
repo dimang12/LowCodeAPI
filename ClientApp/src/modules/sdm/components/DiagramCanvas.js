@@ -1,9 +1,16 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import ContextMenu from './ContextMenu';
+import { ElementDragHandler } from '../handlers/ElementDragHandler';
+import { CanvasDrawHandler } from '../handlers/CanvasDrawHandler';
+import { createConnectionPath, updateConnectionsDuringDrag } from '../utils/connectionHelpers';
+import { createNewElement } from '../utils/elementHelpers';
+import { createGridPattern, createCircleMarker, applyBackgroundGrid, setupZoomBehavior } from '../utils/svgHelpers';
 
 const DiagramCanvas = ({ selectedTool = 'select' }) => {
   const svgRef = useRef(null);
+  const selectedToolRef = useRef(selectedTool);
+  const selectedElementsRef = useRef([]);
   const [elements, setElements] = useState([]);
   const [connections, setConnections] = useState([]);
   const [dragging, setDragging] = useState(null);
@@ -15,6 +22,15 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
   const [historyIndex, setHistoryIndex] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [contextMenu, setContextMenu] = useState(null);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    selectedToolRef.current = selectedTool;
+  }, [selectedTool]);
+
+  useEffect(() => {
+    selectedElementsRef.current = selectedElements;
+  }, [selectedElements]);
 
   // Save to history
   const saveToHistory = useCallback((newElements, newConnections) => {
@@ -105,27 +121,8 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
   }, [elements, connections, selectedElements, saveToHistory]);
 
   // Add element
-  const addElement = useCallback((type, x, y) => {
-    const getDefaultLabel = (type) => {
-      const labels = {
-        start: 'Start',
-        stop: 'Stop',
-        process: 'Process',
-        decision: 'Decision?',
-      };
-      return labels[type] || type;
-    };
-
-    const newElement = {
-      id: Date.now() + Math.random(),
-      type,
-      x,
-      y,
-      width: type === 'decision' ? 120 : 150,
-      height: type === 'decision' ? 80 : 60,
-      label: getDefaultLabel(type),
-      color: type === 'process' ? '#60a5fa' : undefined,
-    };
+  const addElement = useCallback((type, x, y, width, height) => {
+    const newElement = createNewElement(type, x, y, width, height);
     const updatedElements = [...elements, newElement];
     setElements(updatedElements);
     saveToHistory(updatedElements, connections);
@@ -183,52 +180,13 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
     // Clear previous content
     svg.selectAll('*').remove();
 
-    // Create grid pattern
+    // Setup SVG definitions and patterns
     const defs = svg.append('defs');
-    
-    const gridPattern = defs
-      .append('pattern')
-      .attr('id', 'grid')
-      .attr('width', 20)
-      .attr('height', 20)
-      .attr('patternUnits', 'userSpaceOnUse');
+    createGridPattern(defs);
+    createCircleMarker(defs);
 
-    gridPattern
-      .append('path')
-      .attr('d', 'M 20 0 L 0 0 0 20')
-      .attr('fill', 'none')
-      .attr('stroke', '#e5e7eb')
-      .attr('stroke-width', 0.5)
-      .attr('opacity', 0.5);
-
-    // Create background rectangle with grid
-    svg
-      .append('rect')
-      .attr('width', '100%')
-      .attr('height', '100%')
-      .attr('fill', '#ffffff')
-      .attr('fill-opacity', 1);
-
-    svg
-      .append('rect')
-      .attr('width', '100%')
-      .attr('height', '100%')
-      .attr('fill', 'url(#grid)');
-
-    // Create arrowhead marker (must be before connections)
-    const marker = defs
-      .append('marker')
-      .attr('id', 'arrowhead')
-      .attr('markerWidth', 10)
-      .attr('markerHeight', 10)
-      .attr('refX', 9)
-      .attr('refY', 3)
-      .attr('orient', 'auto');
-
-    marker
-      .append('path')
-      .attr('d', 'M0,0 L0,6 L9,3 z')
-      .attr('fill', '#6b7280');
+    // Apply background with grid
+    applyBackgroundGrid(svg);
 
     // Create a main group for zoom/pan transformations
     const mainGroup = svg.append('g').attr('class', 'main-group');
@@ -238,42 +196,7 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
     const elementsGroup = mainGroup.append('g').attr('class', 'elements');
 
     // Setup zoom behavior
-    const zoom = d3.zoom()
-      .scaleExtent([0.1, 4]) // Min zoom 10%, max zoom 400%
-      .filter(function(event) {
-        // Allow zoom on wheel, but not when dragging elements
-        if (event.type === 'wheel') return true;
-        if (event.type === 'mousedown' && event.button === 1) return true; // Middle mouse button
-        return false;
-      })
-      .on('zoom', (event) => {
-        // Apply transform with smooth transition
-        mainGroup.attr('transform', event.transform);
-        // Update zoom level display
-        setZoomLevel(Math.round(event.transform.k * 100));
-      });
-
-    // Apply zoom to SVG
-    svg.call(zoom);
-
-    // Add zoom controls
-    const zoomIn = () => {
-      svg.transition()
-        .duration(300)
-        .call(zoom.scaleBy, 1.3);
-    };
-
-    const zoomOut = () => {
-      svg.transition()
-        .duration(300)
-        .call(zoom.scaleBy, 0.7);
-    };
-
-    const resetZoom = () => {
-      svg.transition()
-        .duration(500)
-        .call(zoom.transform, d3.zoomIdentity);
-    };
+    const { zoomIn, zoomOut, resetZoom } = setupZoomBehavior(svg, mainGroup, setZoomLevel);
 
     // Store zoom functions for external access
     svg.node().zoomIn = zoomIn;
@@ -289,10 +212,12 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
         const path = connectionsGroup
           .append('path')
           .attr('class', 'connection')
+          .attr('data-from', conn.from)
+          .attr('data-to', conn.to)
           .attr('stroke', '#6b7280')
-          .attr('stroke-width', 2)
+          .attr('stroke-width', 4)
           .attr('fill', 'none')
-          .attr('marker-end', 'url(#arrowhead)');
+          .attr('marker-end', 'url(#circlemarker)');
 
         const pathData = createConnectionPath(fromElement, toElement);
         path.attr('d', pathData);
@@ -337,46 +262,9 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
               elementId: element.id
             });
           }
-        })
-        .on('click', (event) => {
-          event.stopPropagation();
-          if (selectedTool === 'connect') {
-            if (connecting) {
-              // Create connection - validate no self-loops or duplicates
-              if (connecting !== element.id) {
-                const isDuplicate = connections.some(
-                  c => c.from === connecting && c.to === element.id
-                );
-                if (!isDuplicate) {
-                  const newConnections = [
-                    ...connections,
-                    { id: Date.now(), from: connecting, to: element.id },
-                  ];
-                  setConnections(newConnections);
-                  saveToHistory(elements, newConnections);
-                }
-              }
-              setConnecting(null);
-              setTempConnection(null);
-            } else {
-              console.log('Setting connecting node:', element.id);
-              setConnecting(element.id);
-            }
-          } else if (selectedTool === 'select') {
-            // Handle selection with Ctrl/Cmd for multi-select
-            if (event.ctrlKey || event.metaKey) {
-              setSelectedElements(prev =>
-                prev.includes(element.id)
-                  ? prev.filter(id => id !== element.id)
-                  : [...prev, element.id]
-              );
-            } else {
-              setSelectedElements([element.id]);
-            }
-          }
         });
 
-      // Create hover highlight border (hidden by default)
+      // Create hover highlight border (hidden by default, shown on hover or selection)
       const hoverBorder = elementGroup
         .append('rect')
         .attr('class', 'hover-border')
@@ -458,7 +346,7 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
         .attr('fill', '#000')
         .text(element.label || element.type);
 
-      // Create resize handles group (hidden by default)
+      // Create resize handles group (hidden by default, shown on hover or selection)
       const resizeHandles = elementGroup
         .append('g')
         .attr('class', 'resize-handles')
@@ -568,104 +456,63 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
         handle.call(resizeDrag);
       });
 
-      // Add hover effects
+      // Add hover effects (only change appearance if not already selected)
       elementGroup
         .on('mouseenter', function() {
-          if (selectedTool === 'select') {
+          if (selectedToolRef.current === 'select') {
             hoverBorder.transition().duration(150).attr('opacity', 1);
-            resizeHandles.transition().duration(150).attr('opacity', 1);
+            resizeHandles.transition().duration(150).attr('opacity', 1).attr('pointer-events', 'all');
             shapeElement.transition().duration(150).attr('stroke', '#3b82f6').attr('stroke-width', 3);
           }
         })
         .on('mouseleave', function() {
-          if (selectedTool === 'select') {
-            hoverBorder.transition().duration(150).attr('opacity', 0);
-            resizeHandles.transition().duration(150).attr('opacity', 0);
-            shapeElement.transition().duration(150).attr('stroke', '#000').attr('stroke-width', 2);
+          if (selectedToolRef.current === 'select') {
+            const elementId = parseFloat(elementGroup.attr('data-id'));
+            const isElementSelected = selectedElementsRef.current.includes(elementId);
+            // Only hide if element is not selected
+            if (!isElementSelected) {
+              hoverBorder.transition().duration(150).attr('opacity', 0);
+              resizeHandles.transition().duration(150).attr('opacity', 0).attr('pointer-events', 'none');
+              shapeElement.transition().duration(150).attr('stroke', '#000').attr('stroke-width', 2);
+            }
           }
         });
     });
 
-    // Setup drag handler for all elements (only in select mode)
-    let dragLastX, dragLastY, isFirstDrag;
-    
-    const dragHandler = d3.drag()
-      .filter(function(event) {
-        // Only allow drag in select mode
-        return selectedTool === 'select';
-      })
-      .on('start', function(event) {
-        const element = d3.select(this);
-        const elementId = element.attr('data-id');
-        if (elementId) {
-          const id = parseFloat(elementId);
-          setDragging(id);
-          // Initialize to 0 since we'll use dx/dy from the first drag event
-          dragLastX = 0;
-          dragLastY = 0;
-          isFirstDrag = true;
-          event.sourceEvent.stopPropagation();
-        }
-      })
-      .on('drag', function(event) {
-        const element = d3.select(this);
-        const elementId = element.attr('data-id');
-        if (elementId) {
-          const id = parseFloat(elementId);
-            
-            let actualDx, actualDy;
-            
-            if (isFirstDrag) {
-              // On first drag, ignore the event and just store position
-              isFirstDrag = false;
-              dragLastX = event.x;
-              dragLastY = event.y;
-              return; // Skip this frame
-            } else {
-              // Calculate actual delta from last position
-              actualDx = event.x - dragLastX;
-              actualDy = event.y - dragLastY;
-              dragLastX = event.x;
-              dragLastY = event.y;
-            }
-            
-          // Update state with incremental change
-          setElements((prev) =>
-            prev.map((e) => {
-              if (e.id === id) {
-                const newX = e.x + actualDx;
-                const newY = e.y + actualDy;
-                // Also update the visual transform
-                element.attr('transform', `translate(${newX}, ${newY})`);
-                return { ...e, x: newX, y: newY };
-              }
-              return e;
-            })
-          );
-        }
-      })
-      .on('end', function() {
-        setDragging(null);
-        setElements((prev) => {
-          saveToHistory(prev, connections);
-          return prev;
-        });
-      });
+    // Setup drag handler for elements using handler class
+    const dragHandlerInstance = new ElementDragHandler({
+      selectedToolRef,
+      elements,
+      connections,
+      connecting,
+      setDragging,
+      setElements,
+      setConnections,
+      setConnecting,
+      setTempConnection,
+      setSelectedElements,
+      saveToHistory,
+      updateConnections: (elementId, newX, newY) => {
+        updateConnectionsDuringDrag(svg, connections, elements, elementId, newX, newY);
+      },
+      mainGroup
+    });
 
-    svg.selectAll('.element').call(dragHandler);
+    const dragBehavior = dragHandlerInstance.createDragBehavior();
+    svg.selectAll('.element').call(dragBehavior);
 
-    // Handle canvas click for adding elements
-    const handleClick = (event) => {
-      if (selectedTool !== 'select' && selectedTool !== 'connect') {
-        const [x, y] = d3.pointer(event);
-        addElement(selectedTool, x, y);
-      }
-    };
+    // Setup draw handler for creating new elements using handler class
+    const drawHandlerInstance = new CanvasDrawHandler({
+      selectedToolRef,
+      mainGroup,
+      addElement
+    });
 
-    svg.on('click', handleClick);
+    const drawBehavior = drawHandlerInstance.createDrawBehavior();
+    svg.call(drawBehavior);
 
     // Handle temp connection while dragging
-    if (connecting && selectedTool === 'connect') {
+    if (connecting && selectedToolRef.current === 'connect') {
       svg.on('mousemove', (event) => {
         const fromElement = elements.find((e) => e.id === connecting);
         if (fromElement) {
@@ -675,11 +522,22 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
       });
     }
 
+    // Add click handler on canvas to clear selection
+    svg.on('click', (event) => {
+      // Only clear if clicking directly on SVG (not on elements)
+      if (event.target === svgRef.current || (event.target.tagName === 'rect' && event.target.getAttribute('fill') === 'url(#grid)')) {
+        if (selectedToolRef.current === 'select') {
+          setSelectedElements([]);
+        }
+      }
+    });
+
     return () => {
       svg.on('click', null);
       svg.on('mousemove', null);
     };
-  }, [elements, connections, selectedTool, dragging, connecting, tempConnection, selectedElements, addElement, saveToHistory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elements, connections, connecting, tempConnection, addElement, saveToHistory]);
 
   // Separate useEffect to handle tool changes
   useEffect(() => {
@@ -687,7 +545,24 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
       setConnecting(null);
       setTempConnection(null);
     }
-  }, [selectedTool]);
+    
+    // Update cursor style based on tool
+    const svg = d3.select(svgRef.current);
+    const cursor = selectedTool === 'connect' ? (connecting ? 'crosshair' : 'pointer') : 
+                   selectedTool !== 'select' ? 'crosshair' : 'default';
+    svg.style('cursor', cursor);
+    
+    // Update element cursors
+    svg.selectAll('.element').style('cursor', function() {
+      const elementId = parseFloat(d3.select(this).attr('data-id'));
+      if (selectedTool === 'select') {
+        return dragging === elementId ? 'grabbing' : 'grab';
+      } else if (selectedTool === 'connect') {
+        return 'pointer';
+      }
+      return 'default';
+    });
+  }, [selectedTool, connecting, dragging]);
 
   // Update border color when connecting state changes
   useEffect(() => {
@@ -711,49 +586,37 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
     });
   }, [connecting]);
 
-  const createConnectionPath = (from, to) => {
-    // Calculate start point (right edge of source node)
-    const fromX = from.x + from.width;
-    const fromY = from.y + from.height / 2;
+  // Update visual state when selection changes
+  useEffect(() => {
+    console.log('Selection effect running, selectedElements:', selectedElements);
+    const svg = d3.select(svgRef.current);
     
-    // Calculate end point (left edge of target node, or mouse position)
-    const toX = typeof to === 'object' && to.x !== undefined && !to.width ? to.x : to.x;
-    const toY = typeof to === 'object' && to.y !== undefined && !to.height ? to.y : to.y + to.height / 2;
-
-    // Create orthogonal path with rounded corners
-    const midX = (fromX + toX) / 2;
-    const cornerRadius = 10;
-    
-    // If nodes are roughly horizontally aligned
-    if (Math.abs(fromY - toY) < 20) {
-      // Simple horizontal line
-      return `M ${fromX} ${fromY} L ${toX} ${toY}`;
-    } else {
-      // Orthogonal path with rounded corners
-      // Go right, then turn down/up, then go left to target
-      if (toY > fromY) {
-        // Target is below - use rounded corners
-        return `
-          M ${fromX} ${fromY}
-          L ${midX - cornerRadius} ${fromY}
-          Q ${midX} ${fromY} ${midX} ${fromY + cornerRadius}
-          L ${midX} ${toY - cornerRadius}
-          Q ${midX} ${toY} ${midX + cornerRadius} ${toY}
-          L ${toX} ${toY}
-        `;
+    // Update all elements based on selection state
+    svg.selectAll('.element').each(function() {
+      const element = d3.select(this);
+      const elementId = parseFloat(element.attr('data-id'));
+      const isSelected = selectedElements.includes(elementId);
+      
+      console.log(`Element ${elementId} isSelected:`, isSelected);
+      
+      const hoverBorder = element.select('.hover-border');
+      const resizeHandles = element.select('.resize-handles');
+      const shapeElement = element.select('.shape');
+      
+      if (isSelected) {
+        console.log(`Showing selection for element ${elementId}`);
+        // Show selection indicators
+        hoverBorder.attr('opacity', 1).attr('stroke', '#3b82f6');
+        resizeHandles.attr('opacity', 1).attr('pointer-events', 'all');
+        shapeElement.attr('stroke', '#3b82f6').attr('stroke-width', 3);
       } else {
-        // Target is above - use rounded corners
-        return `
-          M ${fromX} ${fromY}
-          L ${midX - cornerRadius} ${fromY}
-          Q ${midX} ${fromY} ${midX} ${fromY - cornerRadius}
-          L ${midX} ${toY + cornerRadius}
-          Q ${midX} ${toY} ${midX + cornerRadius} ${toY}
-          L ${toX} ${toY}
-        `;
+        // Hide selection indicators (unless hovering)
+        hoverBorder.attr('opacity', 0);
+        resizeHandles.attr('opacity', 0).attr('pointer-events', 'none');
+        shapeElement.attr('stroke', '#000').attr('stroke-width', 2);
       }
-    }
-  };
+    });
+  }, [selectedElements]);
 
   // Handle zoom controls
   const handleZoomIn = useCallback(() => {
@@ -828,7 +691,8 @@ const DiagramCanvas = ({ selectedTool = 'select' }) => {
         ref={svgRef}
         className="w-full h-full"
         style={{ 
-          cursor: selectedTool === 'connect' ? (connecting ? 'crosshair' : 'pointer') : 'default'
+          cursor: selectedTool === 'connect' ? (connecting ? 'crosshair' : 'pointer') : 
+                  selectedTool !== 'select' ? 'crosshair' : 'default'
         }}
       />
 
