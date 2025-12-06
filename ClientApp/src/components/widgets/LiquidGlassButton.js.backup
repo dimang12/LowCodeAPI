@@ -1,0 +1,355 @@
+import React, { useState } from 'react';
+import { styled } from '@mui/material/styles';
+import { Button as MuiButton } from '@mui/material';
+import { keyframes } from '@mui/system';
+
+// Entrance animation with bounce
+const entranceAnimation = keyframes`
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(-20px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05) translateY(0);
+  }
+  65% {
+    transform: scale(0.95);
+  }
+  80% {
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+`;
+
+// Press animation - jelly squish effect
+const pressAnimation = keyframes`
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.92) scaleY(0.95);
+  }
+  100% {
+    transform: scale(0.95) scaleY(0.97);
+  }
+`;
+
+// Release animation - bounce back
+const releaseAnimation = keyframes`
+  0% {
+    transform: scale(0.95) scaleY(0.97);
+  }
+  40% {
+    transform: scale(1.08) scaleY(1.05);
+  }
+  60% {
+    transform: scale(0.98) scaleY(0.99);
+  }
+  80% {
+    transform: scale(1.02) scaleY(1.01);
+  }
+  100% {
+    transform: scale(1);
+  }
+`;
+
+// Shimmer effect animation
+const shimmerAnimation = keyframes`
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+`;
+
+// Styled button with liquid glass effect
+const StyledLiquidGlassButton = styled(MuiButton, {
+  shouldForwardProp: (prop) => 
+    !['isPressed', 'isReleased', 'variant', 'darkMode', 'animated'].includes(prop),
+})(({ theme, isPressed, isReleased, variant = 'default', darkMode = false, animated = false }) => {
+  
+  // Color schemes for different variants
+  const colorSchemes = {
+    default: {
+      light: {
+        background: 'rgba(255, 255, 255, 0.4)',
+        border: 'rgba(255, 255, 255, 0.6)',
+        text: 'rgba(0, 0, 0, 0.85)',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        glow: 'rgba(255, 255, 255, 0.5)',
+      },
+      dark: {
+        background: 'rgba(30, 40, 60, 0.4)',
+        border: 'rgba(255, 255, 255, 0.3)',
+        text: 'rgba(255, 255, 255, 0.95)',
+        shadow: 'rgba(0, 0, 0, 0.3)',
+        glow: 'rgba(100, 150, 255, 0.3)',
+      }
+    },
+    primary: {
+      light: {
+        background: 'rgba(99, 102, 241, 0.5)',
+        border: 'rgba(99, 102, 241, 0.5)',
+        text: 'rgba(30, 30, 60, 0.9)',
+        shadow: 'rgba(99, 102, 241, 0.2)',
+        glow: 'rgba(99, 102, 241, 0.4)',
+      },
+      dark: {
+        background: 'rgba(99, 102, 241, 0.25)',
+        border: 'rgba(139, 142, 255, 0.4)',
+        text: 'rgba(255, 255, 255, 0.95)',
+        shadow: 'rgba(99, 102, 241, 0.3)',
+        glow: 'rgba(139, 142, 255, 0.4)',
+      }
+    },
+    success: {
+      light: {
+        background: 'rgba(34, 197, 94, 0.3)',
+        border: 'rgba(34, 197, 94, 0.5)',
+        text: 'rgba(20, 80, 40, 0.9)',
+        shadow: 'rgba(34, 197, 94, 0.2)',
+        glow: 'rgba(34, 197, 94, 0.4)',
+      },
+      dark: {
+        background: 'rgba(34, 197, 94, 0.25)',
+        border: 'rgba(74, 222, 128, 0.4)',
+        text: 'rgba(255, 255, 255, 0.95)',
+        shadow: 'rgba(34, 197, 94, 0.3)',
+        glow: 'rgba(74, 222, 128, 0.4)',
+      }
+    },
+    danger: {
+      light: {
+        background: 'rgba(239, 68, 68, 0.3)',
+        border: 'rgba(239, 68, 68, 0.5)',
+        text: 'rgba(80, 20, 20, 0.9)',
+        shadow: 'rgba(239, 68, 68, 0.2)',
+        glow: 'rgba(239, 68, 68, 0.4)',
+      },
+      dark: {
+        background: 'rgba(239, 68, 68, 0.25)',
+        border: 'rgba(252, 129, 129, 0.4)',
+        text: 'rgba(255, 255, 255, 0.95)',
+        shadow: 'rgba(239, 68, 68, 0.3)',
+        glow: 'rgba(252, 129, 129, 0.4)',
+      }
+    }
+  };
+
+  const colors = colorSchemes[variant]?.[darkMode ? 'dark' : 'light'] || colorSchemes.default[darkMode ? 'dark' : 'light'];
+
+  return {
+    position: 'relative',
+    padding: '12px 32px',
+    fontSize: '16px',
+    fontWeight: 600,
+    borderRadius: '24px',
+    textTransform: 'none',
+    overflow: 'hidden',
+    border: `1px solid ${colors.border}`,
+    color: colors.text,
+    background: colors.background,
+    backdropFilter: 'blur(20px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    
+    // Liquid glass effect with multiple shadows
+    boxShadow: `
+      0 8px 32px ${colors.shadow},
+      0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+      0 2px 4px rgba(255, 255, 255, 0.3) inset
+    `,
+    
+    // Entrance animation
+    animation: `${entranceAnimation} 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards`,
+    
+    // Press animation
+    ...(isPressed && {
+      animation: `${pressAnimation} 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards`,
+    }),
+    
+    // Release animation
+    ...(isReleased && {
+      animation: `${releaseAnimation} 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards`,
+    }),
+    
+    // Pseudo-element for shimmer effect (conditional based on animated prop)
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      left: '-100%',
+      width: '200%',
+      height: '100%',
+      background: `linear-gradient(
+        90deg,
+        transparent,
+        ${colors.glow},
+        transparent
+      )`,
+      backgroundSize: '200% 100%',
+      animation: animated ? `${shimmerAnimation} 3s ease-in-out infinite` : 'none',
+      pointerEvents: 'none',
+    },
+    
+    // Pseudo-element for inner glow
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      top: '2px',
+      left: '2px',
+      right: '2px',
+      bottom: '2px',
+      borderRadius: '22px',
+      background: `linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.2) 0%,
+        transparent 50%,
+        rgba(0, 0, 0, 0.05) 100%
+      )`,
+      pointerEvents: 'none',
+      opacity: 0.8,
+    },
+    
+    // Hover state
+    '&:hover': {
+      background: darkMode 
+        ? 'rgba(255, 255, 255, 0.08)' 
+        : 'rgba(255, 255, 255, 0.5)',
+      borderColor: colors.border,
+      boxShadow: `
+        0 12px 48px ${colors.shadow},
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset,
+        0 2px 8px ${colors.glow} inset
+      `,
+      transform: 'translateY(-2px)',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    },
+    
+    // Active state (when pressing)
+    '&:active': {
+      transform: 'scale(0.95)',
+    },
+    
+    // Disabled state
+    '&:disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+      background: 'rgba(100, 100, 100, 0.2)',
+      color: 'rgba(100, 100, 100, 0.6)',
+      '&:hover': {
+        transform: 'none',
+      }
+    },
+    
+    // Focus visible
+    '&:focus-visible': {
+      outline: 'none',
+      boxShadow: `
+        0 12px 48px ${colors.shadow},
+        0 0 0 3px ${colors.glow},
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset
+      `,
+    },
+    
+    // Ensure content stays on top
+    '& .MuiButton-startIcon, & .MuiButton-endIcon': {
+      position: 'relative',
+      zIndex: 1,
+    },
+    
+    '& .MuiButton-label': {
+      position: 'relative',
+      zIndex: 1,
+    },
+    
+    // Responsive sizing
+    [theme.breakpoints.down('sm')]: {
+      padding: '10px 24px',
+      fontSize: '14px',
+    },
+  };
+});
+/**
+ * LiquidGlassButton - iOS 26 inspired liquid glass button with animations
+ * 
+ * @param {React.ReactNode} children - Button content
+ * @param {string} variant - Button variant: 'default', 'primary', 'success', 'danger'
+ * @param {boolean} darkMode - Enable dark mode styling
+ * @param {boolean} animated - Enable shimmer animation (default: false)
+ * @param {function} onClick - Click handler
+ * @param {boolean} disabled - Disable button
+ * @param {React.ReactNode} startIcon - Icon before text
+ * @param {React.ReactNode} endIcon - Icon after text
+ * @param {string} className - Additional CSS classes
+ * @param {object} ...props - Additional MUI Button props
+ */
+const LiquidGlassButton = ({
+  children,
+  variant = 'default',
+  darkMode = false,
+  animated = false,
+  onClick,
+  disabled = false,
+  startIcon,
+  endIcon,
+  className,
+  ...props
+}) => {
+  const [isPressed, setIsPressed] = useState(false);
+  const [isReleased, setIsReleased] = useState(false);
+
+  const handleMouseDown = () => {
+    setIsPressed(true);
+    setIsReleased(false);
+  };
+
+  const handleMouseUp = () => {
+    setIsPressed(false);
+    setIsReleased(true);
+    
+    // Reset release animation after it completes
+    setTimeout(() => {
+      setIsReleased(false);
+    }, 600);
+  };
+
+  const handleClick = (e) => {
+    if (onClick) {
+      onClick(e);
+    }
+  };
+
+  return (
+    <StyledLiquidGlassButton
+      variant={variant}
+      darkMode={darkMode}
+      animated={animated}
+      isPressed={isPressed}
+      isReleased={isReleased}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={() => {
+        if (isPressed) {
+          handleMouseUp();
+        }
+      }}
+      onClick={handleClick}
+      disabled={disabled}
+      startIcon={startIcon}
+      endIcon={endIcon}
+      className={className}
+      disableRipple
+      disableElevation
+      {...props}
+    >
+      {children}
+    </StyledLiquidGlassButton>
+  );
+};
+
+export default LiquidGlassButton;

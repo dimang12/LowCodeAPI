@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { ELEMENT_COLORS, ELEMENT_STROKE, SHAPE_STYLES, DRAG_CONFIG } from '../config/diagramStyles';
 
 /**
  * Handles drawing new elements on the canvas
@@ -57,26 +58,36 @@ export class CanvasDrawHandler {
       this.drawElement = this.drawGroup.append('rect')
         .attr('width', 0)
         .attr('height', 0)
-        .attr('rx', 20)
-        .attr('fill', type === 'start' ? '#10b981' : '#ef4444')
-        .attr('stroke', '#000')
-        .attr('stroke-width', 2)
-        .attr('opacity', 0.7);
+        .attr('rx', SHAPE_STYLES.borderRadius)
+        .attr('fill', type === 'start' ? ELEMENT_COLORS.start : ELEMENT_COLORS.stop)
+        .attr('stroke', ELEMENT_STROKE.default.color)
+        .attr('stroke-width', ELEMENT_STROKE.default.width)
+        .attr('opacity', SHAPE_STYLES.opacity);
     } else if (type === 'process') {
       this.drawElement = this.drawGroup.append('rect')
         .attr('width', 0)
         .attr('height', 0)
-        .attr('fill', '#60a5fa')
-        .attr('stroke', '#000')
-        .attr('stroke-width', 2)
-        .attr('opacity', 0.7);
+        .attr('fill', ELEMENT_COLORS.process)
+        .attr('stroke', ELEMENT_STROKE.default.color)
+        .attr('stroke-width', ELEMENT_STROKE.default.width)
+        .attr('opacity', SHAPE_STYLES.opacity);
+    } else if (type === 'dataTemplate') {
+      this.drawElement = this.drawGroup.append('rect')
+        .attr('width', 0)
+        .attr('height', 0)
+        .attr('rx', 8)
+        .attr('ry', 8)
+        .attr('fill', ELEMENT_COLORS.dataTemplate)
+        .attr('stroke', ELEMENT_STROKE.default.color)
+        .attr('stroke-width', ELEMENT_STROKE.default.width)
+        .attr('opacity', SHAPE_STYLES.opacity);
     } else if (type === 'decision') {
       this.drawElement = this.drawGroup.append('polygon')
         .attr('points', '0,0')
-        .attr('fill', '#fbbf24')
-        .attr('stroke', '#000')
-        .attr('stroke-width', 2)
-        .attr('opacity', 0.7);
+        .attr('fill', ELEMENT_COLORS.decision)
+        .attr('stroke', ELEMENT_STROKE.default.color)
+        .attr('stroke-width', ELEMENT_STROKE.default.width)
+        .attr('opacity', SHAPE_STYLES.opacity);
     }
   }
 
@@ -119,7 +130,7 @@ export class CanvasDrawHandler {
     
     this.drawGroup.remove();
     
-    if (width > 30 && height > 20) {
+    if (width > DRAG_CONFIG.minDrawWidth && height > DRAG_CONFIG.minDrawHeight) {
       this.addElement(this.selectedToolRef.current, x, y, width, height);
     }
   }

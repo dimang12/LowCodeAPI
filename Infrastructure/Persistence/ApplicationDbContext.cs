@@ -15,6 +15,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
     public DbSet<AppPackage> AppPackages { get; set; }
     public DbSet<AppPage> AppPages { get; set; }
+    public DbSet<Sdm> Sdms { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

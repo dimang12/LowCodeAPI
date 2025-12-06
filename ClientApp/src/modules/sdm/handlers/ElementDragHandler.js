@@ -1,4 +1,6 @@
 import * as d3 from 'd3';
+import { DRAG_CONFIG } from '../config/diagramStyles';
+import { updateConnectionsDuringDrag } from '../utils/connectionHelpers';
 
 /**
  * Drag behavior handler for diagram elements
@@ -9,6 +11,7 @@ export class ElementDragHandler {
     this.elements = options.elements;
     this.connections = options.connections;
     this.connecting = options.connecting;
+    this.selectedElements = options.selectedElements;
     this.setDragging = options.setDragging;
     this.setElements = options.setElements;
     this.setConnections = options.setConnections;
@@ -18,6 +21,7 @@ export class ElementDragHandler {
     this.saveToHistory = options.saveToHistory;
     this.updateConnections = options.updateConnections;
     this.mainGroup = options.mainGroup;
+    this.onNodeClick = options.onNodeClick;
     
     // Drag state
     this.dragStartClientX = null;
@@ -27,6 +31,7 @@ export class ElementDragHandler {
     this.dragStartPointerY = null;
     this.elementStartX = null;
     this.elementStartY = null;
+    this.selectedElementsStartPositions = null;
   }
 
   /**
@@ -75,6 +80,20 @@ export class ElementDragHandler {
       this.dragStartPointerX = x;
       this.dragStartPointerY = y;
       
+      // Store start positions for all selected elements
+      if (this.selectedElements.includes(id)) {
+        this.selectedElementsStartPositions = this.selectedElements.map(selId => {
+          const selElem = this.elements.find(e => e.id === selId);
+          return {
+            id: selId,
+            startX: selElem.x,
+            startY: selElem.y
+          };
+        });
+      } else {
+        this.selectedElementsStartPositions = null;
+      }
+      
       this.hasMoved = false;
     }
   }
@@ -108,7 +127,11 @@ export class ElementDragHandler {
    * Handles drag event
    */
   handleDrag(event) {
-    const element = d3.select(event.sourceEvent.target.closest('.element'));
+    console.log('handleDrag called');
+    const targetElement = event.sourceEvent.target.closest('.element');
+    if (!targetElement) return;
+    
+    const element = d3.select(targetElement);
     const elementId = element.attr('data-id');
     
     if (!elementId) return;
@@ -116,11 +139,13 @@ export class ElementDragHandler {
     const id = parseFloat(elementId);
     const [currentX, currentY] = d3.pointer(event, this.mainGroup.node());
     
+    console.log('handleDrag processing element:', id, 'hasMoved:', this.hasMoved);
+    
     if (!this.hasMoved) {
       const totalDx = Math.abs(event.sourceEvent.clientX - this.dragStartClientX);
       const totalDy = Math.abs(event.sourceEvent.clientY - this.dragStartClientY);
       
-      if (totalDx > 5 || totalDy > 5) {
+      if (totalDx > DRAG_CONFIG.threshold || totalDy > DRAG_CONFIG.threshold) {
         this.hasMoved = true;
         this.setDragging(id);
         this.updateElementPosition(element, currentX, currentY, id);
@@ -134,20 +159,52 @@ export class ElementDragHandler {
    * Updates element position during drag
    */
   updateElementPosition(element, currentX, currentY, id) {
+    console.log('updateElementPosition called for element:', id);
     const pointerDx = currentX - this.dragStartPointerX;
     const pointerDy = currentY - this.dragStartPointerY;
-    const newX = this.elementStartX + pointerDx;
-    const newY = this.elementStartY + pointerDy;
     
-    element.attr('transform', `translate(${newX}, ${newY})`);
-    this.updateConnections(id, newX, newY);
+    // If dragging a selected element, move all selected elements
+    if (this.selectedElementsStartPositions) {
+      const svg = d3.select(this.mainGroup.node().ownerSVGElement);
+      const positionMap = {};
+      
+      this.selectedElementsStartPositions.forEach(({ id: elemId, startX, startY }) => {
+        const newX = startX + pointerDx;
+        const newY = startY + pointerDy;
+        
+        positionMap[elemId] = { x: newX, y: newY };
+        
+        const elemGroup = svg.select(`.element[data-id="${elemId}"]`);
+        if (!elemGroup.empty()) {
+          elemGroup.attr('transform', `translate(${newX}, ${newY})`);
+        }
+      });
+      
+      // Update all connections once with all positions
+      this.updateConnections(positionMap);
+    } else {
+      // Single element drag
+      const newX = this.elementStartX + pointerDx;
+      const newY = this.elementStartY + pointerDy;
+      
+      element.attr('transform', `translate(${newX}, ${newY})`);
+      this.updateConnections(id, newX, newY);
+    }
   }
 
   /**
    * Handles drag end event
    */
   handleDragEnd(event) {
-    const element = d3.select(event.sourceEvent.target.closest('.element'));
+    // In connect mode, handleDragStart returns early, so nothing to do here
+    if (this.selectedToolRef.current === 'connect') {
+      return;
+    }
+    
+    const targetElement = event.sourceEvent.target.closest('.element');
+    if (!targetElement) return;
+    
+    const element = d3.select(targetElement);
     const elementId = element.attr('data-id');
     
     if (!elementId) return;
@@ -163,21 +220,51 @@ export class ElementDragHandler {
    * Saves final position after drag
    */
   saveFinalPosition(element, id) {
-    const transform = element.attr('transform');
-    const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+    this.setDragging(null);
     
-    if (match) {
-      const finalX = parseFloat(match[1]);
-      const finalY = parseFloat(match[2]);
+    // If multiple elements were dragged, update all of them
+    if (this.selectedElementsStartPositions) {
+      const svg = d3.select(this.mainGroup.node().ownerSVGElement);
+      const updates = {};
       
-      this.setDragging(null);
+      this.selectedElementsStartPositions.forEach(({ id: elemId }) => {
+        const elemGroup = svg.select(`.element[data-id="${elemId}"]`);
+        if (!elemGroup.empty()) {
+          const transform = elemGroup.attr('transform');
+          const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+          if (match) {
+            updates[elemId] = {
+              x: parseFloat(match[1]),
+              y: parseFloat(match[2])
+            };
+          }
+        }
+      });
+      
       this.setElements((prev) => {
         const updated = prev.map((e) => 
-          e.id === id ? { ...e, x: finalX, y: finalY } : e
+          updates[e.id] ? { ...e, x: updates[e.id].x, y: updates[e.id].y } : e
         );
         this.saveToHistory(updated, this.connections);
         return updated;
       });
+    } else {
+      // Single element drag
+      const transform = element.attr('transform');
+      const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+      
+      if (match) {
+        const finalX = parseFloat(match[1]);
+        const finalY = parseFloat(match[2]);
+        
+        this.setElements((prev) => {
+          const updated = prev.map((e) => 
+            e.id === id ? { ...e, x: finalX, y: finalY } : e
+          );
+          this.saveToHistory(updated, this.connections);
+          return updated;
+        });
+      }
     }
   }
 
@@ -193,6 +280,14 @@ export class ElementDragHandler {
       );
     } else {
       this.setSelectedElements([id]);
+      
+      // Trigger node click callback if provided
+      if (this.onNodeClick) {
+        const clickedElement = this.elements.find(e => e.id === id);
+        if (clickedElement) {
+          this.onNodeClick(clickedElement);
+        }
+      }
     }
   }
 }

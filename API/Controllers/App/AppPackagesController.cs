@@ -4,7 +4,7 @@ using LowcodeAPI.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace LowcodeAPI.API.Controllers;
+namespace LowcodeAPI.API.Controllers.App;
 
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]

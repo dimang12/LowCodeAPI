@@ -1,6 +1,7 @@
 /**
  * Helper functions for diagram elements
  */
+import { ELEMENT_COLORS, ELEMENT_DIMENSIONS, DRAG_CONFIG } from '../config/diagramStyles';
 
 /**
  * Gets default label for an element type
@@ -13,6 +14,7 @@ export const getDefaultLabel = (type) => {
     stop: 'Stop',
     process: 'Process',
     decision: 'Decision?',
+    dataTemplate: 'Data Template',
   };
   return labels[type] || type;
 };
@@ -27,15 +29,16 @@ export const getDefaultLabel = (type) => {
  * @returns {Object} New element object
  */
 export const createNewElement = (type, x, y, width, height) => {
+  const dimensions = ELEMENT_DIMENSIONS[type] || ELEMENT_DIMENSIONS.process;
   return {
     id: Date.now() + Math.random(),
     type,
     x,
     y,
-    width: width || (type === 'decision' ? 120 : 150),
-    height: height || (type === 'decision' ? 80 : 60),
+    width: width || dimensions.width,
+    height: height || dimensions.height,
     label: getDefaultLabel(type),
-    color: type === 'process' ? '#60a5fa' : undefined,
+    color: type === 'process' ? ELEMENT_COLORS.process : undefined,
   };
 };
 
@@ -47,15 +50,7 @@ export const createNewElement = (type, x, y, width, height) => {
  */
 export const getElementColor = (type, customColor) => {
   if (customColor) return customColor;
-  
-  const colors = {
-    start: '#10b981',
-    stop: '#ef4444',
-    process: '#60a5fa',
-    decision: '#fbbf24',
-  };
-  
-  return colors[type] || '#e5e7eb';
+  return ELEMENT_COLORS[type] || ELEMENT_COLORS.default;
 };
 
 /**
@@ -111,8 +106,8 @@ export const calculateResize = (element, handleName, dx, dy) => {
   let newY = element.y;
 
   // Minimum dimensions
-  const MIN_WIDTH = 50;
-  const MIN_HEIGHT = 30;
+  const MIN_WIDTH = DRAG_CONFIG.minElementWidth;
+  const MIN_HEIGHT = DRAG_CONFIG.minElementHeight;
 
   if (handleName.includes('e')) {
     newWidth = Math.max(MIN_WIDTH, newWidth + dx);
