@@ -92,6 +92,9 @@ builder.Services.AddControllers()
 // Add Feature Management
 builder.Services.AddFeatureManagement();
 
+// Add SDM Execution Services
+builder.Services.AddScoped<LowcodeAPI.Application.Sdm.ISdmExecutor, LowcodeAPI.Application.Sdm.SdmExecutor>();
+
 // Configure API services
 builder.Services.AddApiServices(builder.Configuration);
 

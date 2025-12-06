@@ -26,6 +26,10 @@ const AppRoutes = [
   {
     path: '/sdm',
     element: <SdmModule />
+  },
+  {
+    path: '/sdm/:id',
+    element: <SdmModule />
   }
 ];
 

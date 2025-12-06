@@ -1,6 +1,7 @@
 /**
  * Helper functions for managing connections between diagram elements
  */
+import { CONNECTION_STYLES } from '../config/diagramStyles';
 
 /**
  * Creates an SVG path for a connection between two elements
@@ -19,10 +20,10 @@ export const createConnectionPath = (from, to) => {
 
   // Create orthogonal path with rounded corners
   const midX = (fromX + toX) / 2;
-  const cornerRadius = 20;
+  const cornerRadius = CONNECTION_STYLES.cornerRadius;
   
   // If nodes are roughly horizontally aligned
-  if (Math.abs(fromY - toY) < 20) {
+  if (Math.abs(fromY - toY) < CONNECTION_STYLES.alignmentThreshold) {
     // Simple horizontal line
     return `M ${fromX} ${fromY} L ${toX} ${toY}`;
   } else {
@@ -57,26 +58,57 @@ export const createConnectionPath = (from, to) => {
  * @param {Object} svg - D3 SVG selection
  * @param {Array} connections - Array of connection objects
  * @param {Array} elements - Array of element objects
- * @param {number} elementId - ID of the element being dragged
- * @param {number} newX - New X position of the element
- * @param {number} newY - New Y position of the element
+ * @param {number|Object} elementIdOrPositions - Either a single element ID or an object mapping IDs to {x, y} positions
+ * @param {number} newX - New X position (only used if first param is a single ID)
+ * @param {number} newY - New Y position (only used if first param is a single ID)
  */
-export const updateConnectionsDuringDrag = (svg, connections, elements, elementId, newX, newY) => {
+export const updateConnectionsDuringDrag = (svg, connections, elements, elementIdOrPositions, newX, newY) => {
+  // Build position map for dragged elements
+  const draggedPositions = (typeof elementIdOrPositions === 'object' && elementIdOrPositions !== null && !Array.isArray(elementIdOrPositions))
+    ? elementIdOrPositions 
+    : { [elementIdOrPositions]: { x: newX, y: newY } };
+  
+  const draggedIds = Object.keys(draggedPositions).map(id => parseFloat(id));
+  
   connections.forEach((conn) => {
-    if (conn.from === elementId || conn.to === elementId) {
+    // Only update if at least one end is being dragged
+    if (draggedIds.includes(conn.from) || draggedIds.includes(conn.to)) {
       const connectionPath = svg.select(`.connection[data-from="${conn.from}"][data-to="${conn.to}"]`);
       
       if (!connectionPath.empty()) {
-        const fromElement = conn.from === elementId 
-          ? { x: newX, y: newY, width: elements.find(e => e.id === elementId)?.width || 150, height: elements.find(e => e.id === elementId)?.height || 60 }
+        // Get position for 'from' element
+        const fromElement = draggedIds.includes(conn.from)
+          ? { 
+              x: draggedPositions[conn.from].x, 
+              y: draggedPositions[conn.from].y, 
+              width: elements.find(e => e.id === conn.from)?.width || 150, 
+              height: elements.find(e => e.id === conn.from)?.height || 60 
+            }
           : elements.find(e => e.id === conn.from);
-        const toElement = conn.to === elementId
-          ? { x: newX, y: newY, width: elements.find(e => e.id === elementId)?.width || 150, height: elements.find(e => e.id === elementId)?.height || 60 }
+        
+        // Get position for 'to' element
+        const toElement = draggedIds.includes(conn.to)
+          ? { 
+              x: draggedPositions[conn.to].x, 
+              y: draggedPositions[conn.to].y, 
+              width: elements.find(e => e.id === conn.to)?.width || 150, 
+              height: elements.find(e => e.id === conn.to)?.height || 60 
+            }
           : elements.find(e => e.id === conn.to);
         
         if (fromElement && toElement) {
           const pathData = createConnectionPath(fromElement, toElement);
           connectionPath.attr('d', pathData);
+          
+          // Update connection label position
+          const connectionLabel = svg.select(`.connection-label[data-from="${conn.from}"][data-to="${conn.to}"]`);
+          if (!connectionLabel.empty()) {
+            const midX = (fromElement.x + fromElement.width + toElement.x) / 2;
+            const midY = (fromElement.y + fromElement.height / 2 + toElement.y + toElement.height / 2) / 2;
+            connectionLabel
+              .attr('x', midX)
+              .attr('y', midY - 5);
+          }
         }
       }
     }

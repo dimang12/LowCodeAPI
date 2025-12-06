@@ -1,14 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import DiagramCanvas from './components/DiagramCanvas';
+import { Drawer } from '../../components/widgets';
 import { tools } from './config/tools';
+import NodeConfigPanel from './components/NodeConfigPanel';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
 const SdmModule = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [zoom, setZoom] = useState(100);
   const [selectedTool, setSelectedTool] = useState('select');
+  const [currentSdmId, setCurrentSdmId] = useState(id ? parseInt(id) : null);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Update currentSdmId when URL param changes
+  useEffect(() => {
+    if (id) {
+      setCurrentSdmId(parseInt(id));
+    }
+  }, [id]);
+
+  const handleSdmChange = (newSdmId) => {
+    setCurrentSdmId(newSdmId);
+    navigate(`/sdm/${newSdmId}`);
+  };
+
+  const handleNodeClick = (node) => {
+    setSelectedNode(node);
+    setIsDrawerOpen(true);
+  };
+
+  const handleDrawerClose = () => {
+    setIsDrawerOpen(false);
+    setSelectedNode(null);
+  };
+
+  const handleNodeUpdate = (updatedNode) => {
+    // Update the node in the diagram
+    if (window.sdmUpdateElement) {
+      window.sdmUpdateElement(updatedNode.id, updatedNode);
+    }
+    // Update selected node to reflect changes
+    setSelectedNode(updatedNode);
+  };
 
   return (
     <div className="flex h-full w-full flex-row bg-white px-1">
@@ -36,8 +75,30 @@ const SdmModule = () => {
 
       {/* Canvas */}
       <div className="flex-1 overflow-hidden" style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}>
-        <DiagramCanvas selectedTool={selectedTool} />
+        <DiagramCanvas 
+          selectedTool={selectedTool} 
+          currentSdmId={currentSdmId}
+          onSdmChange={handleSdmChange}
+          onNodeClick={handleNodeClick}
+          onNodeUpdate={handleNodeUpdate}
+          isDrawerOpen={isDrawerOpen}
+        />
       </div>
+
+      {/* Configuration Drawer */}
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleDrawerClose}
+        title={selectedNode ? `Configure ${selectedNode.type} Node` : 'Node Configuration'}
+        width="max-w-lg"
+      >
+        {selectedNode && (
+          <NodeConfigPanel
+            node={selectedNode}
+            onUpdate={handleNodeUpdate}
+          />
+        )}
+      </Drawer>
     </div>
   );
 };
